@@ -2,10 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Xml.Linq;
 using CubiCasa.Data;
 using NetTopologySuite.Geometries;
-using Svg;
-using Svg.Pathing;
 
 namespace CubiCasa
 {
@@ -27,7 +26,6 @@ namespace CubiCasa
                 var floor = LoadFloor(svgFile);
 
                 // Infer floor index from folder name if possible (e.g. F1, F2)
-                // This is a heuristic based on observed dataset structure
                 var parentDir = Directory.GetParent(svgFile)?.Name;
                 if (parentDir != null && parentDir.StartsWith("F", StringComparison.OrdinalIgnoreCase) && int.TryParse(parentDir.Substring(1), out int index))
                 {
@@ -49,31 +47,6 @@ namespace CubiCasa
              if (!Directory.Exists(datasetRootPath))
                 throw new DirectoryNotFoundException($"Dataset directory not found: {datasetRootPath}");
 
-             // The dataset is typically structured as:
-             // root/
-             //   high_quality/
-             //     1234/
-             //       F1/model.svg
-             //   colorful/
-             //     5678/
-             //       ...
-             // OR just flat list of building folders.
-             //
-             // Strategy: Find all folders that contain subfolders like "F1", "F2", OR find all folders that contain "model.svg" but group them by building.
-
-             // A safer approach: Find all 'model.svg' files, get their building root (parent of parent usually, or the folder containing F* folders).
-             // But `LoadBuilding` expects a "Building Folder".
-
-             // Let's iterate top-level directories and then subdirectories.
-             // If a directory contains 'model.svg' directly or in subfolders, it might be a building.
-             // However, to avoid duplicates (loading F1 as a building and Building1 as a building), we need to be careful.
-
-             // Assumption: A "Building" is the folder that contains "F1", "F2", etc.
-             // OR if single floor, it might be the folder containing "model.svg".
-
-             // We will iterate recursively. If we find a "model.svg", we trace up to find the "Floor" folder (if naming convention F*) or we assume the parent is the floor.
-             // But we want to return unique Buildings.
-
              var uniqueBuildingPaths = new HashSet<string>();
 
              var svgFiles = Directory.EnumerateFiles(datasetRootPath, "model.svg", SearchOption.AllDirectories);
@@ -82,43 +55,14 @@ namespace CubiCasa
              {
                  var dir = new DirectoryInfo(Path.GetDirectoryName(svgFile));
 
-                 // Heuristic: If folder name is "F[0-9]+", the building is the parent.
-                 // If not, maybe the building is this folder itself (single floor).
-
                  DirectoryInfo buildingDir;
-                 if (System.Text.RegularExpressions.Regex.IsMatch(dir.Name, @"^F\d+$", System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+                 if (dir.Name.StartsWith("F", StringComparison.OrdinalIgnoreCase) && dir.Name.Length > 1 && char.IsDigit(dir.Name[1]))
                  {
                      buildingDir = dir.Parent;
                  }
                  else
                  {
-                     // If the folder is not F1, F2, maybe it's just the building folder directly containing model.svg?
-                     // Or maybe it's some other structure.
-                     // For now, let's treat the parent of model.svg as the Floor, and its parent as the Building, UNLESS the parent doesn't look like a floor.
-
-                     // Actually, LoadBuilding(path) expects the path to be the root of the building.
-                     // It recursively searches for model.svg inside.
-
-                     // If we pass "Building1" to LoadBuilding, it finds "Building1/F1/model.svg".
-                     // So we want to identify "Building1".
-
-                     // If we are at ".../Building1/F1/model.svg", dir is ".../Building1/F1". buildingDir is ".../Building1".
-                     // If we are at ".../Building2/model.svg" (flat), dir is ".../Building2". buildingDir is ".../Building2"?
-                     // No, LoadBuilding searches recursively. So if we pass ".../Building2", it finds "model.svg" inside.
-
-                     // So:
-                     // 1. Get directory of model.svg.
-                     // 2. If directory name starts with 'F' and digit, go up one level.
-                     // 3. Else, use that directory.
-
-                     if (dir.Name.StartsWith("F", StringComparison.OrdinalIgnoreCase) && dir.Name.Length > 1 && char.IsDigit(dir.Name[1]))
-                     {
-                         buildingDir = dir.Parent;
-                     }
-                     else
-                     {
-                         buildingDir = dir;
-                     }
+                     buildingDir = dir;
                  }
 
                  if (buildingDir != null)
@@ -135,16 +79,43 @@ namespace CubiCasa
 
         public CubiCasaFloor LoadFloor(string svgFilePath)
         {
-            var svgDocument = SvgDocument.Open(svgFilePath);
+            var doc = XDocument.Load(svgFilePath);
+            var root = doc.Root;
+
+            // Default ViewBox parsing
+            double width = 0, height = 0;
+            if (root != null)
+            {
+                var viewBox = root.Attribute("viewBox")?.Value;
+                if (viewBox != null)
+                {
+                    var parts = viewBox.Split(new[] { ' ', ',' }, StringSplitOptions.RemoveEmptyEntries);
+                    if (parts.Length == 4)
+                    {
+                        if (double.TryParse(parts[2], out double w) && double.TryParse(parts[3], out double h))
+                        {
+                            width = w;
+                            height = h;
+                        }
+                    }
+                }
+                else
+                {
+                     // Fallback to width/height attributes
+                     double.TryParse(root.Attribute("width")?.Value, out width);
+                     double.TryParse(root.Attribute("height")?.Value, out height);
+                }
+            }
+
             var floor = new CubiCasaFloor
             {
                 SvgPath = svgFilePath,
-                WidthPixels = svgDocument.ViewBox.Width,
-                HeightPixels = svgDocument.ViewBox.Height,
-                Entities = ParseEntities(svgDocument).ToArray()
+                WidthPixels = width,
+                HeightPixels = height,
+                Entities = ParseEntities(doc).ToArray()
             };
 
-            // Check for pixel_to_meter.txt in the same directory
+            // Check for pixel_to_meter.txt
             var dir = Path.GetDirectoryName(svgFilePath);
             if (dir != null)
             {
@@ -162,46 +133,58 @@ namespace CubiCasa
             return floor;
         }
 
-        private IEnumerable<CubiCasaEntity> ParseEntities(SvgDocument doc)
+        private IEnumerable<CubiCasaEntity> ParseEntities(XDocument doc)
         {
-            // Iterate through all groups and paths
-            // We assume grouping by ID or class determines the type
-            // This is a simplified implementation based on the test case
+            if (doc.Root == null) yield break;
+
+            var ns = doc.Root.Name.Namespace;
+
+            // Find all paths (handle with and without namespace if necessary, but typically strict)
+            // If the root has a default namespace, all descendants inherit it.
 
             foreach (var element in doc.Descendants())
             {
-                if (element is SvgPath path)
+                if (element.Name.LocalName != "path") continue;
+
+                var parent = element.Parent;
+                var type = CubiCasaEntityType.Undefined;
+                var originalId = parent?.Attribute("id")?.Value ?? element.Attribute("id")?.Value;
+
+                if (parent != null)
                 {
-                    // Find parent group to determine type
-                    var parent = path.Parent;
-                    var type = CubiCasaEntityType.Undefined;
-                    var originalId = parent?.ID ?? path.ID;
+                    type = ParseType(parent.Attribute("id")?.Value);
+                }
 
-                    if (parent != null)
-                    {
-                        type = ParseType(parent.ID);
-                    }
+                if (type == CubiCasaEntityType.Undefined)
+                {
+                    type = ParseType(element.Attribute("id")?.Value);
+                }
 
-                    if (type == CubiCasaEntityType.Undefined)
+                if (type != CubiCasaEntityType.Undefined)
+                {
+                    var d = element.Attribute("d")?.Value;
+                    if (!string.IsNullOrEmpty(d))
                     {
-                        type = ParseType(path.ID);
-                    }
+                        var geometry = ParsePathData(d);
+                        if (geometry != null)
+                        {
+                             var attributes = element.Attributes()
+                                 .ToDictionary(a => a.Name.LocalName, a => a.Value);
 
-                    if (type != CubiCasaEntityType.Undefined)
-                    {
-                         yield return new CubiCasaEntity
-                         {
-                             OriginalId = originalId,
-                             Type = type,
-                             Geometry = ConvertPathToGeometry(path),
-                             Attributes = element.CustomAttributes
-                         };
+                             yield return new CubiCasaEntity
+                             {
+                                 OriginalId = originalId,
+                                 Type = type,
+                                 Geometry = geometry,
+                                 Attributes = attributes
+                             };
+                        }
                     }
                 }
             }
         }
 
-        private CubiCasaEntityType ParseType(string id)
+        private CubiCasaEntityType ParseType(string? id)
         {
             if (string.IsNullOrEmpty(id)) return CubiCasaEntityType.Undefined;
 
@@ -216,43 +199,65 @@ namespace CubiCasa
             return CubiCasaEntityType.Undefined;
         }
 
-        private Geometry ConvertPathToGeometry(SvgPath path)
+        private Geometry? ParsePathData(string d)
         {
-            // Simplified conversion. Real implementation needs to handle all SVG commands.
-            // SvgPath has a PathData property which is a list of SvgPathSegments.
-
             var coordinates = new List<Coordinate>();
-            var startPoint = new Coordinate(0, 0);
-            var currentPoint = new Coordinate(0, 0);
 
-            foreach (var segment in path.PathData)
+            // Extremely simplified parser: splits by spaces and looks for M and L
+            // M x y, L x y ... Z
+            // Note: SVG paths can be complex (commas, relative coordinates, implicit commands).
+            // CubiCasa polygons are typically absolute M and L.
+
+            // Normalize spaces and ensure commands are separated
+            // Naive approach: insert spaces around commands
+            var normalizedD = d.Replace(",", " ")
+                               .Replace("M", " M ")
+                               .Replace("L", " L ")
+                               .Replace("Z", " Z ")
+                               .Replace("z", " z ");
+
+            var parts = normalizedD.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+
+            double currentX = 0;
+            double currentY = 0;
+
+            for (int i = 0; i < parts.Length; i++)
             {
-                // This is a naive implementation and only supports MoveTo and LineTo for the test.
-                // A robust implementation would need to approximate curves.
-
-                if (segment is SvgMoveToSegment moveTo)
+                var cmd = parts[i];
+                if (cmd == "M" || cmd == "L")
                 {
-                    // For MoveTo, End contains the coordinates to move to.
-                    // Start is the end of the previous segment (or 0,0).
-                    currentPoint = new Coordinate(moveTo.End.X, moveTo.End.Y);
-                    if (coordinates.Count == 0) coordinates.Add(currentPoint); // Initial move
+                    if (i + 2 < parts.Length)
+                    {
+                        if (double.TryParse(parts[i+1], out double x) && double.TryParse(parts[i+2], out double y))
+                        {
+                            currentX = x;
+                            currentY = y;
+                            coordinates.Add(new Coordinate(currentX, currentY));
+                            i += 2;
+                        }
+                    }
                 }
-                else if (segment is SvgLineSegment line)
+                else if (cmd == "Z" || cmd == "z")
                 {
-                    currentPoint = new Coordinate(line.End.X, line.End.Y);
-                    coordinates.Add(currentPoint);
+                    if (coordinates.Count > 0)
+                    {
+                        coordinates.Add(coordinates[0]);
+                    }
                 }
-                else if (segment is SvgClosePathSegment)
-                {
-                    coordinates.Add(coordinates[0]); // Close the loop
-                }
-                // TODO: Handle curves (Cubic, Quadratic, Arc) by flattening/linearizing them.
+                // TODO: Handle curve commands (C, Q, A) if they appear in the dataset.
             }
 
-            if (coordinates.Count < 4) return null; // Not a valid polygon
+            if (coordinates.Count < 4) return null;
 
-            var factory = new GeometryFactory();
-            return factory.CreatePolygon(coordinates.ToArray());
+            try
+            {
+                var factory = new GeometryFactory();
+                return factory.CreatePolygon(coordinates.ToArray());
+            }
+            catch
+            {
+                return null;
+            }
         }
     }
 }
