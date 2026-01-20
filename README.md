@@ -62,8 +62,4 @@ foreach (var floor in building.Floors)
 
 ## Linux Support
 
-This library uses `System.Drawing.Common` (via the `Svg` library), which requires `libgdiplus` on Linux.
-
-```bash
-sudo apt-get install libgdiplus
-```
+This library is fully cross-platform and does not require `libgdiplus` or `System.Drawing.Common`, as it uses a custom lightweight SVG parser tailored for the CubiCasa dataset.

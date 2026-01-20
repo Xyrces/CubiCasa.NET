@@ -4,7 +4,11 @@ import zipfile
 from tqdm import tqdm
 
 DATA_URL = "https://zenodo.org/records/2613548/files/cubicasa5k.zip?download=1"
-DEST_FOLDER = "data"
+
+# Determine the repository root (parent of this script's folder)
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+REPO_ROOT = os.path.dirname(SCRIPT_DIR)
+DEST_FOLDER = os.path.join(REPO_ROOT, "data")
 ZIP_FILE = os.path.join(DEST_FOLDER, "cubicasa5k.zip")
 
 def download_file(url, filename):
