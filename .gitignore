@@ -6,3 +6,7 @@ obj/
 *.user
 *.suo
 *.log
+data/
+*.zip
+venv/
+venv/

@@ -37,12 +37,15 @@ namespace CubiCasa.NET.Tests
             var wall = floor.Entities.FirstOrDefault(e => e.Type == CubiCasaEntityType.Wall);
             Assert.NotNull(wall);
             Assert.Equal("Wall", wall.OriginalId);
-            Assert.True(wall.Geometry.Area > 0);
+            // 90 * 90 = 8100
+            Assert.Equal(8100, wall.Geometry.Area);
+            Assert.Equal(new NetTopologySuite.Geometries.Coordinate(10, 10), wall.Geometry.Coordinates[0]);
 
             var room = floor.Entities.FirstOrDefault(e => e.Type == CubiCasaEntityType.Room);
             Assert.NotNull(room);
             Assert.Equal("Room", room.OriginalId);
-            Assert.True(room.Geometry.Area > 0);
+            // 100 * 100 = 10000
+            Assert.Equal(10000, room.Geometry.Area);
 
             // Cleanup
             if (File.Exists(tempFile)) File.Delete(tempFile);
@@ -105,6 +108,54 @@ namespace CubiCasa.NET.Tests
 
             var f2 = building.Floors.First(f => f.FloorIndex == 2);
             Assert.Null(f2.PixelsPerMeter);
+
+            // Cleanup
+            Directory.Delete(tempDir, true);
+        }
+
+        [Fact]
+        public void LoadDataset_DiscoversBuildings_Correctly()
+        {
+            // Arrange
+            var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+            var datasetDir = Path.Combine(tempDir, "CubiCasa5k");
+
+            // Structure:
+            // CubiCasa5k/high_quality/1001/F1/model.svg
+            // CubiCasa5k/high_quality/1002/model.svg (flat structure case)
+            // CubiCasa5k/colorful/2001/F1/model.svg
+            // CubiCasa5k/colorful/2001/F2/model.svg
+
+            var b1 = Path.Combine(datasetDir, "high_quality", "1001");
+            Directory.CreateDirectory(Path.Combine(b1, "F1"));
+
+            var b2 = Path.Combine(datasetDir, "high_quality", "1002");
+            Directory.CreateDirectory(b2);
+
+            var b3 = Path.Combine(datasetDir, "colorful", "2001");
+            Directory.CreateDirectory(Path.Combine(b3, "F1"));
+            Directory.CreateDirectory(Path.Combine(b3, "F2"));
+
+            var svgContent = @"<svg viewBox=""0 0 100 100"" xmlns=""http://www.w3.org/2000/svg""><g id=""Wall""></g></svg>";
+
+            File.WriteAllText(Path.Combine(b1, "F1", "model.svg"), svgContent);
+            File.WriteAllText(Path.Combine(b2, "model.svg"), svgContent);
+            File.WriteAllText(Path.Combine(b3, "F1", "model.svg"), svgContent);
+            File.WriteAllText(Path.Combine(b3, "F2", "model.svg"), svgContent);
+
+            var loader = new CubiCasaLoader();
+
+            // Act
+            var buildings = loader.LoadDataset(datasetDir).ToList();
+
+            // Assert
+            Assert.Equal(3, buildings.Count);
+            Assert.Contains(buildings, b => b.BuildingId == "1001");
+            Assert.Contains(buildings, b => b.BuildingId == "1002");
+            Assert.Contains(buildings, b => b.BuildingId == "2001");
+
+            var building2001 = buildings.First(b => b.BuildingId == "2001");
+            Assert.Equal(2, building2001.Floors.Length);
 
             // Cleanup
             Directory.Delete(tempDir, true);
