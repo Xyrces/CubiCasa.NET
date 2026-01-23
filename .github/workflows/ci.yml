@@ -8,6 +8,9 @@ on:
 jobs:
   build_and_test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
 
     steps:
       - uses: actions/checkout@v3
@@ -18,12 +21,23 @@ jobs:
         uses: actions/setup-dotnet@v3
         with:
           dotnet-version: '9.0.x'
+          source-url: https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json
+        env:
+          NUGET_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Restore dependencies
         run: dotnet restore
 
       - name: Build
-        run: dotnet build --no-restore
+        run: dotnet build --no-restore --configuration Release
 
       - name: Test
-        run: dotnet test --no-build --verbosity normal
+        run: dotnet test --no-build --configuration Release --verbosity normal
+
+      - name: Pack
+        if: github.event_name == 'pull_request'
+        run: dotnet pack --no-build --configuration Release --output . -p:MinVerDefaultPreReleasePhase=preview.${{ github.event.number }}
+
+      - name: Publish
+        if: github.event_name == 'pull_request'
+        run: dotnet nuget push "*.nupkg" --source https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json --api-key ${{ secrets.GITHUB_TOKEN }} --skip-duplicate
