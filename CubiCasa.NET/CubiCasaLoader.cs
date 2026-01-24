@@ -14,7 +14,7 @@ namespace CubiCasa
     /// </summary>
     public class CubiCasaLoader : ICubiCasaLoader
     {
-        public static async Task<List<CubiCasaLayout>> LoadLayoutsAsync(string path = null, int? maxItems = null, Action<string> logger = null)
+        public static async Task<List<CubiCasaBuilding>> LoadLayoutsAsync(string path = null, int? maxItems = null, Action<string> logger = null)
         {
             if (string.IsNullOrEmpty(path))
             {
@@ -34,17 +34,7 @@ namespace CubiCasa
                     buildings = buildings.Take(maxItems.Value);
                 }
 
-                var layouts = new List<CubiCasaLayout>();
-                foreach (var b in buildings)
-                {
-                    layouts.Add(new CubiCasaLayout
-                    {
-                        BuildingId = b.BuildingId,
-                        Floors = b.Floors
-                    });
-                }
-
-                return layouts;
+                return buildings.ToList();
             });
         }
 

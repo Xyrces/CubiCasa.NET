@@ -28,7 +28,7 @@ namespace CubiCasa.NET.Tests
                 // Assert
                 Assert.NotNull(layouts);
                 Assert.Single(layouts);
-                Assert.IsType<CubiCasaLayout>(layouts[0]);
+                Assert.IsType<CubiCasaBuilding>(layouts[0]);
                 Assert.Equal("5001", layouts[0].BuildingId);
                 Assert.Single(layouts[0].Floors);
             }
