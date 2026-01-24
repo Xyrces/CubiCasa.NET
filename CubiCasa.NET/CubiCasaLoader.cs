@@ -9,6 +9,9 @@ using NetTopologySuite.Geometries;
 
 namespace CubiCasa
 {
+    /// <summary>
+    /// Native C# loader for CubiCasa5k dataset. Zero-config, no external scripts required.
+    /// </summary>
     public class CubiCasaLoader : ICubiCasaLoader
     {
         public static async Task<List<CubiCasaLayout>> LoadLayoutsAsync(string path = null, int? maxItems = null, Action<string> logger = null)
