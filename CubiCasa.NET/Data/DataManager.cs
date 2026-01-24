@@ -11,6 +11,7 @@ namespace CubiCasa.Data
         private const string DatasetUrl = "https://zenodo.org/records/2613548/files/cubicasa5k.zip?download=1";
         private const string DefaultDataDirName = "CubiCasaData";
         private const string UserHomeDataDirName = ".cubicasa";
+        private const string CompletionMarkerFile = ".dataset_ready";
 
         public static async Task EnsureDataAsync(Action<string> logger = null)
         {
@@ -56,12 +57,26 @@ namespace CubiCasa.Data
                 ZipFile.ExtractToDirectory(zipPath, targetDir, overwriteFiles: true);
 
                 log($"Extraction complete to {targetDir}");
+
+                // Validate extraction
+                if (Directory.GetFiles(targetDir, "model.svg", SearchOption.AllDirectories).Length == 0)
+                {
+                     throw new InvalidDataException("Extraction completed but no 'model.svg' files were found.");
+                }
+
+                // Mark as ready
+                File.WriteAllText(Path.Combine(targetDir, CompletionMarkerFile), DateTime.UtcNow.ToString("O"));
             }
             catch (Exception ex)
             {
                 log($"Error downloading or extracting dataset: {ex.Message}");
                 // Attempt cleanup
                 if (File.Exists(zipPath)) File.Delete(zipPath);
+
+                // Remove partial data if we can identify it, or at least ensure no marker exists.
+                var markerPath = Path.Combine(targetDir, CompletionMarkerFile);
+                if (File.Exists(markerPath)) File.Delete(markerPath);
+
                 throw;
             }
             finally
@@ -96,8 +111,9 @@ namespace CubiCasa.Data
         private static bool IsValidDataDir(string path)
         {
             if (!Directory.Exists(path)) return false;
-            // Check for at least one SVG to be sure it's the dataset
-            return Directory.GetFiles(path, "model.svg", SearchOption.AllDirectories).Length > 0;
+            // Check for completion marker and at least one SVG
+            return File.Exists(Path.Combine(path, CompletionMarkerFile)) &&
+                   Directory.GetFiles(path, "model.svg", SearchOption.AllDirectories).Length > 0;
         }
     }
 }
