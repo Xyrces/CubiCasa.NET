@@ -16,17 +16,15 @@ namespace CubiCasa.Data
         {
             var log = logger ?? Console.WriteLine;
 
-            var dataPath = GetDataPath();
-            if (Directory.Exists(dataPath) && Directory.GetFiles(dataPath, "*.svg", SearchOption.AllDirectories).Length > 0)
+            var targetDir = GetDataPath();
+            if (IsValidDataDir(targetDir))
             {
-                log($"Data found at {dataPath}");
+                log($"Data found at {targetDir}");
                 return;
             }
 
-            // Download to default location: ./CubiCasaData
-            var workingDir = Directory.GetCurrentDirectory();
-            var targetDir = Path.Combine(workingDir, DefaultDataDirName);
-
+            // If we are here, targetDir is likely the default location but empty or missing.
+            // Ensure the directory exists.
             if (!Directory.Exists(targetDir))
             {
                 Directory.CreateDirectory(targetDir);
@@ -36,29 +34,41 @@ namespace CubiCasa.Data
 
             log($"Dataset not found. Downloading to {zipPath}...");
 
-            using (var client = new HttpClient())
+            try
             {
-                client.Timeout = TimeSpan.FromMinutes(60); // Large file
-                using (var response = await client.GetAsync(DatasetUrl, HttpCompletionOption.ResponseHeadersRead))
+                using (var client = new HttpClient())
                 {
-                    response.EnsureSuccessStatusCode();
-                    using (var contentStream = await response.Content.ReadAsStreamAsync())
-                    using (var fileStream = new FileStream(zipPath, FileMode.Create, FileAccess.Write, FileShare.None, 8192, true))
+                    client.Timeout = TimeSpan.FromMinutes(60); // Large file
+                    using (var response = await client.GetAsync(DatasetUrl, HttpCompletionOption.ResponseHeadersRead))
                     {
-                        await contentStream.CopyToAsync(fileStream);
+                        response.EnsureSuccessStatusCode();
+                        using (var contentStream = await response.Content.ReadAsStreamAsync())
+                        using (var fileStream = new FileStream(zipPath, FileMode.Create, FileAccess.Write, FileShare.None, 8192, true))
+                        {
+                            await contentStream.CopyToAsync(fileStream);
+                        }
                     }
                 }
+
+                log("Download complete. Extracting...");
+
+                // Extract
+                ZipFile.ExtractToDirectory(zipPath, targetDir, overwriteFiles: true);
+
+                log($"Extraction complete to {targetDir}");
             }
-
-            log("Download complete. Extracting...");
-
-            // Extract
-            ZipFile.ExtractToDirectory(zipPath, targetDir, overwriteFiles: true);
-
-            log($"Extraction complete to {targetDir}");
-
-            // Cleanup zip
-            File.Delete(zipPath);
+            catch (Exception ex)
+            {
+                log($"Error downloading or extracting dataset: {ex.Message}");
+                // Attempt cleanup
+                if (File.Exists(zipPath)) File.Delete(zipPath);
+                throw;
+            }
+            finally
+            {
+                 // Cleanup zip if it exists (successful extraction)
+                 if (File.Exists(zipPath)) File.Delete(zipPath);
+            }
         }
 
         public static string GetDataPath()

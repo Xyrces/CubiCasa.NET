@@ -19,25 +19,28 @@ namespace CubiCasa
                 path = DataManager.GetDataPath();
             }
 
-            var loader = new CubiCasaLoader();
-            var buildings = loader.LoadDataset(path);
-
-            if (maxItems.HasValue)
+            return await Task.Run(() =>
             {
-                buildings = buildings.Take(maxItems.Value);
-            }
+                var loader = new CubiCasaLoader();
+                var buildings = loader.LoadDataset(path);
 
-            var layouts = new List<CubiCasaLayout>();
-            foreach (var b in buildings)
-            {
-                layouts.Add(new CubiCasaLayout
+                if (maxItems.HasValue)
                 {
-                    BuildingId = b.BuildingId,
-                    Floors = b.Floors
-                });
-            }
+                    buildings = buildings.Take(maxItems.Value);
+                }
 
-            return layouts;
+                var layouts = new List<CubiCasaLayout>();
+                foreach (var b in buildings)
+                {
+                    layouts.Add(new CubiCasaLayout
+                    {
+                        BuildingId = b.BuildingId,
+                        Floors = b.Floors
+                    });
+                }
+
+                return layouts;
+            });
         }
 
         public CubiCasaBuilding LoadBuilding(string folderPath)
