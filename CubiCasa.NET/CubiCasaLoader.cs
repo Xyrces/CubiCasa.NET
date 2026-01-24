@@ -21,6 +21,8 @@ namespace CubiCasa
 
             return await Task.Run(() =>
             {
+                // Note: LoadDataset is synchronous and performs IO (directory enumeration).
+                // We wrap it in Task.Run to offload it to a thread pool thread.
                 var loader = new CubiCasaLoader();
                 var buildings = loader.LoadDataset(path);
 

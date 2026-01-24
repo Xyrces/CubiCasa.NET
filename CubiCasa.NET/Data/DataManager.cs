@@ -75,20 +75,21 @@ namespace CubiCasa.Data
         {
             var workingDir = Directory.GetCurrentDirectory();
 
-            // 1. Check ~/.cubicasa
             var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
             var userHomeData = Path.Combine(userProfile, UserHomeDataDirName);
-            if (IsValidDataDir(userHomeData)) return userHomeData;
-
-            // 2. Check ./CubiCasaData
             var localData = Path.Combine(workingDir, DefaultDataDirName);
-            if (IsValidDataDir(localData)) return localData;
-
-            // 3. Check for ./CubiCasa5k (legacy/alternative)
             var legacyData = Path.Combine(workingDir, "CubiCasa5k");
+
+            // Priority 1: Valid Data (Where data definitely exists)
+            if (IsValidDataDir(userHomeData)) return userHomeData;
+            if (IsValidDataDir(localData)) return localData;
             if (IsValidDataDir(legacyData)) return legacyData;
 
-            // Default to ./CubiCasaData
+            // Priority 2: Existing Directory (Candidate for repair/download)
+            // If the user created ~/.cubicasa, they probably want the data there.
+            if (Directory.Exists(userHomeData)) return userHomeData;
+
+            // Priority 3: Default
             return localData;
         }
 
