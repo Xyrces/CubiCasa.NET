@@ -24,7 +24,7 @@ namespace CubiCasa.Data
                 return;
             }
 
-            // If we are here, targetDir is likely the default location but empty or missing.
+            // If we are here, targetDir is the determined path (default or user-provisioned) but it lacks valid data.
             // Ensure the directory exists.
             if (!Directory.Exists(targetDir))
             {
