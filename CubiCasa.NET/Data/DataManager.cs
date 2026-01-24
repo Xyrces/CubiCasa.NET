@@ -24,7 +24,7 @@ namespace CubiCasa.Data
                 return;
             }
 
-            // If we are here, targetDir is the determined path (default or user-provisioned) but it lacks valid data.
+            // targetDir is the authoritative path from GetDataPath(). If valid data is missing, we download there.
             // Ensure the directory exists.
             if (!Directory.Exists(targetDir))
             {
