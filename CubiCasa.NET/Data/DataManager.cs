@@ -23,10 +23,7 @@ namespace CubiCasa.Data
                 return;
             }
 
-            // If we are here, GetDataPath returned a path but it might not be populated or it's the default one where we want to download.
-            // If GetDataPath returned an existing directory but with no SVGs, or a non-existent one (which would be the default download location).
-
-            // We'll use the default location for download: ./CubiCasaData
+            // Download to default location: ./CubiCasaData
             var workingDir = Directory.GetCurrentDirectory();
             var targetDir = Path.Combine(workingDir, DefaultDataDirName);
 
