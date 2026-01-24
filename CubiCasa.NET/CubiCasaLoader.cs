@@ -22,20 +22,15 @@ namespace CubiCasa
                 path = DataManager.GetDataPath();
             }
 
-            return await Task.Run(() =>
+            var loader = new CubiCasaLoader();
+            var buildings = loader.LoadDataset(path);
+
+            if (maxItems.HasValue)
             {
-                // Note: LoadDataset is synchronous and performs IO (directory enumeration).
-                // We wrap it in Task.Run to offload it to a thread pool thread.
-                var loader = new CubiCasaLoader();
-                var buildings = loader.LoadDataset(path);
+                buildings = buildings.Take(maxItems.Value);
+            }
 
-                if (maxItems.HasValue)
-                {
-                    buildings = buildings.Take(maxItems.Value);
-                }
-
-                return buildings.ToList();
-            });
+            return buildings.ToList();
         }
 
         public CubiCasaBuilding LoadBuilding(string folderPath)
