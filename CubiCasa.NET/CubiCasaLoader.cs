@@ -2,14 +2,37 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Xml.Linq;
 using CubiCasa.Data;
 using NetTopologySuite.Geometries;
 
 namespace CubiCasa
 {
+    /// <summary>
+    /// Native C# loader for CubiCasa5k dataset. Zero-config, no external scripts required.
+    /// </summary>
     public class CubiCasaLoader : ICubiCasaLoader
     {
+        public static async Task<List<CubiCasaBuilding>> LoadLayoutsAsync(string path = null, int? maxItems = null, Action<string> logger = null)
+        {
+            if (string.IsNullOrEmpty(path))
+            {
+                await DataManager.EnsureDataAsync(logger);
+                path = DataManager.GetDataPath();
+            }
+
+            var loader = new CubiCasaLoader();
+            var buildings = loader.LoadDataset(path);
+
+            if (maxItems.HasValue)
+            {
+                buildings = buildings.Take(maxItems.Value);
+            }
+
+            return buildings.ToList();
+        }
+
         public CubiCasaBuilding LoadBuilding(string folderPath)
         {
             if (!Directory.Exists(folderPath))
