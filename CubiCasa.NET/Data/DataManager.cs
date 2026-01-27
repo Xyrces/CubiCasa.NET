@@ -60,7 +60,7 @@ namespace CubiCasa.Data
                 log($"Extraction complete to {targetDir}");
 
                 // Validate extraction
-                if (Directory.GetFiles(targetDir, "model.svg", SearchOption.AllDirectories).Length == 0)
+                if (!Directory.EnumerateFiles(targetDir, "model.svg", SearchOption.AllDirectories).Any())
                 {
                      throw new InvalidDataException("Extraction completed but no 'model.svg' files were found.");
                 }
