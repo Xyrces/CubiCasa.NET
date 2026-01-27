@@ -48,7 +48,7 @@ namespace CubiCasa
             var floors = new List<CubiCasaFloor>();
 
             // Recursively search for model.svg files
-            var svgFiles = Directory.GetFiles(folderPath, "model.svg", SearchOption.AllDirectories);
+            var svgFiles = Directory.EnumerateFiles(folderPath, "model.svg", SearchOption.AllDirectories);
 
             foreach (var svgFile in svgFiles)
             {
