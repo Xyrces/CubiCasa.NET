@@ -253,49 +253,45 @@ namespace CubiCasa
         private Geometry? ParsePathData(string d)
         {
             var coordinates = new List<Coordinate>();
+            ReadOnlySpan<char> span = d.AsSpan();
+            int i = 0;
 
-            // Extremely simplified parser: splits by spaces and looks for M and L
-            // M x y, L x y ... Z
-            // Note: SVG paths can be complex (commas, relative coordinates, implicit commands).
-            // CubiCasa polygons are typically absolute M and L.
-
-            // Normalize spaces and ensure commands are separated
-            // Naive approach: insert spaces around commands
-            var normalizedD = d.Replace(",", " ")
-                               .Replace("M", " M ")
-                               .Replace("L", " L ")
-                               .Replace("Z", " Z ")
-                               .Replace("z", " z ");
-
-            var parts = normalizedD.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-
-            double currentX = 0;
-            double currentY = 0;
-
-            for (int i = 0; i < parts.Length; i++)
+            while (i < span.Length)
             {
-                var cmd = parts[i];
-                if (cmd == "M" || cmd == "L")
+                // Skip separators
+                while (i < span.Length && (span[i] == ' ' || span[i] == ','))
                 {
-                    if (i + 2 < parts.Length)
+                    i++;
+                }
+                if (i >= span.Length) break;
+
+                // Check for command
+                char c = span[i];
+                if (IsCommand(c))
+                {
+                    char cmd = c;
+                    i++; // Consume command
+
+                    if (cmd == 'M' || cmd == 'L')
                     {
-                        if (double.TryParse(parts[i+1], out double x) && double.TryParse(parts[i+2], out double y))
+                        if (TryReadCoordinate(span, ref i, out double x) && TryReadCoordinate(span, ref i, out double y))
                         {
-                            currentX = x;
-                            currentY = y;
-                            coordinates.Add(new Coordinate(currentX, currentY));
-                            i += 2;
+                            coordinates.Add(new Coordinate(x, y));
+                        }
+                    }
+                    else if (cmd == 'Z' || cmd == 'z')
+                    {
+                        if (coordinates.Count > 0)
+                        {
+                            coordinates.Add(coordinates[0]);
                         }
                     }
                 }
-                else if (cmd == "Z" || cmd == "z")
+                else
                 {
-                    if (coordinates.Count > 0)
-                    {
-                        coordinates.Add(coordinates[0]);
-                    }
+                    // Unexpected token or part of previous command we didn't handle?
+                    SkipToken(span, ref i);
                 }
-                // TODO: Handle curve commands (C, Q, A) if they appear in the dataset.
             }
 
             if (coordinates.Count < 4) return null;
@@ -308,6 +304,39 @@ namespace CubiCasa
             catch
             {
                 return null;
+            }
+        }
+
+        private static bool IsCommand(char c)
+        {
+            return c == 'M' || c == 'L' || c == 'Z' || c == 'z';
+        }
+
+        private static bool TryReadCoordinate(ReadOnlySpan<char> span, ref int i, out double val)
+        {
+            val = 0;
+            // Skip whitespace
+            while (i < span.Length && (span[i] == ' ' || span[i] == ',')) i++;
+            if (i >= span.Length) return false;
+
+            // Check if we hit a command
+            if (IsCommand(span[i])) return false;
+
+            // Find end of number token
+            int start = i;
+            while (i < span.Length && span[i] != ' ' && span[i] != ',' && !IsCommand(span[i]))
+            {
+                i++;
+            }
+
+            return double.TryParse(span.Slice(start, i - start), out val);
+        }
+
+        private static void SkipToken(ReadOnlySpan<char> span, ref int i)
+        {
+            while (i < span.Length && span[i] != ' ' && span[i] != ',' && !IsCommand(span[i]))
+            {
+                i++;
             }
         }
     }
