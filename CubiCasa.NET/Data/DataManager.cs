@@ -65,7 +65,7 @@ namespace CubiCasa.Data
                 }
 
                 // Mark as ready
-                File.WriteAllText(Path.Combine(targetDir, CompletionMarkerFile), DateTime.UtcNow.ToString("O"));
+                await File.WriteAllTextAsync(Path.Combine(targetDir, CompletionMarkerFile), DateTime.UtcNow.ToString("O"));
             }
             catch (Exception ex)
             {
