@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Xml.Linq;
+using System.Buffers;
 using CubiCasa.Data;
 using NetTopologySuite.Geometries;
 
@@ -14,6 +15,8 @@ namespace CubiCasa
     /// </summary>
     public class CubiCasaLoader : ICubiCasaLoader
     {
+        private static readonly SearchValues<char> _typeStartChars = SearchValues.Create("WRDSIwrdsi");
+
         public static async Task<List<CubiCasaBuilding>> LoadLayoutsAsync(string path = null, int? maxItems = null, Action<string> logger = null)
         {
             if (string.IsNullOrEmpty(path))
@@ -211,15 +214,40 @@ namespace CubiCasa
         {
             if (string.IsNullOrEmpty(id)) return CubiCasaEntityType.Undefined;
 
-            if (id.Contains("Wall", StringComparison.OrdinalIgnoreCase)) return CubiCasaEntityType.Wall;
-            if (id.Contains("Room", StringComparison.OrdinalIgnoreCase)) return CubiCasaEntityType.Room;
-            if (id.Contains("Window", StringComparison.OrdinalIgnoreCase)) return CubiCasaEntityType.Window;
-            if (id.Contains("Door", StringComparison.OrdinalIgnoreCase)) return CubiCasaEntityType.Door;
-            if (id.Contains("Stairs", StringComparison.OrdinalIgnoreCase)) return CubiCasaEntityType.Stairs;
-            if (id.Contains("Railing", StringComparison.OrdinalIgnoreCase)) return CubiCasaEntityType.Railing;
-            if (id.Contains("Icon", StringComparison.OrdinalIgnoreCase)) return CubiCasaEntityType.Icon;
+            var span = id.AsSpan();
+            while (true)
+            {
+                int index = span.IndexOfAny(_typeStartChars);
+                if (index < 0) return CubiCasaEntityType.Undefined;
 
-            return CubiCasaEntityType.Undefined;
+                span = span.Slice(index);
+                char c = span[0];
+
+                if (c == 'W' || c == 'w')
+                {
+                    if (span.StartsWith("Wall", StringComparison.OrdinalIgnoreCase)) return CubiCasaEntityType.Wall;
+                    if (span.StartsWith("Window", StringComparison.OrdinalIgnoreCase)) return CubiCasaEntityType.Window;
+                }
+                else if (c == 'R' || c == 'r')
+                {
+                    if (span.StartsWith("Room", StringComparison.OrdinalIgnoreCase)) return CubiCasaEntityType.Room;
+                    if (span.StartsWith("Railing", StringComparison.OrdinalIgnoreCase)) return CubiCasaEntityType.Railing;
+                }
+                else if (c == 'D' || c == 'd')
+                {
+                    if (span.StartsWith("Door", StringComparison.OrdinalIgnoreCase)) return CubiCasaEntityType.Door;
+                }
+                else if (c == 'S' || c == 's')
+                {
+                    if (span.StartsWith("Stairs", StringComparison.OrdinalIgnoreCase)) return CubiCasaEntityType.Stairs;
+                }
+                else if (c == 'I' || c == 'i')
+                {
+                    if (span.StartsWith("Icon", StringComparison.OrdinalIgnoreCase)) return CubiCasaEntityType.Icon;
+                }
+
+                span = span.Slice(1);
+            }
         }
 
         private Geometry? ParsePathData(string d)
