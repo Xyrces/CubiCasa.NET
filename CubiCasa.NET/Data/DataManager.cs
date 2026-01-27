@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.IO.Compression;
+using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
 
@@ -113,7 +114,7 @@ namespace CubiCasa.Data
             if (!Directory.Exists(path)) return false;
             // Check for completion marker and at least one SVG
             return File.Exists(Path.Combine(path, CompletionMarkerFile)) &&
-                   Directory.GetFiles(path, "model.svg", SearchOption.AllDirectories).Length > 0;
+                   Directory.EnumerateFiles(path, "model.svg", SearchOption.AllDirectories).Any();
         }
     }
 }
