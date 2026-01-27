@@ -94,7 +94,7 @@ namespace CubiCasa.NET.Tests
         }
 
         [Fact]
-        public void Parse_InvalidTokens_Resovers()
+        public void Parse_InvalidTokens_Recovers()
         {
              // M 0 0 -> (0,0)
              // L 10 0 -> (10,0)
