@@ -44,11 +44,18 @@ namespace CubiCasa
             if (!Directory.Exists(folderPath))
                 throw new DirectoryNotFoundException($"Directory not found: {folderPath}");
 
-            var buildingId = new DirectoryInfo(folderPath).Name;
-            var floors = new List<CubiCasaFloor>();
-
             // Recursively search for model.svg files
             var svgFiles = Directory.EnumerateFiles(folderPath, "model.svg", SearchOption.AllDirectories);
+            return LoadBuilding(folderPath, svgFiles);
+        }
+
+        public CubiCasaBuilding LoadBuilding(string folderPath, IEnumerable<string> svgFiles)
+        {
+            if (!Directory.Exists(folderPath))
+                throw new DirectoryNotFoundException($"Directory not found: {folderPath}");
+
+            var buildingId = new DirectoryInfo(folderPath).Name;
+            var floors = new List<CubiCasaFloor>();
 
             foreach (var svgFile in svgFiles)
             {
@@ -76,7 +83,7 @@ namespace CubiCasa
              if (!Directory.Exists(datasetRootPath))
                 throw new DirectoryNotFoundException($"Dataset directory not found: {datasetRootPath}");
 
-             var uniqueBuildingPaths = new HashSet<string>();
+             var buildingSvgs = new Dictionary<string, List<string>>();
 
              var svgFiles = Directory.EnumerateFiles(datasetRootPath, "model.svg", SearchOption.AllDirectories);
 
@@ -96,13 +103,18 @@ namespace CubiCasa
 
                  if (buildingDir != null)
                  {
-                     uniqueBuildingPaths.Add(buildingDir.FullName);
+                     if (!buildingSvgs.TryGetValue(buildingDir.FullName, out var list))
+                     {
+                         list = new List<string>();
+                         buildingSvgs.Add(buildingDir.FullName, list);
+                     }
+                     list.Add(svgFile);
                  }
              }
 
-             foreach (var path in uniqueBuildingPaths)
+             foreach (var kvp in buildingSvgs)
              {
-                 yield return LoadBuilding(path);
+                 yield return LoadBuilding(kvp.Key, kvp.Value);
              }
         }
 
