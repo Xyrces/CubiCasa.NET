@@ -14,6 +14,8 @@ namespace CubiCasa.Data
         private const string UserHomeDataDirName = ".cubicasa";
         private const string CompletionMarkerFile = ".dataset_ready";
 
+        private static readonly HttpClient _httpClient = new HttpClient { Timeout = TimeSpan.FromMinutes(60) };
+
         public static async Task EnsureDataAsync(Action<string> logger = null)
         {
             var log = logger ?? Console.WriteLine;
@@ -38,17 +40,13 @@ namespace CubiCasa.Data
 
             try
             {
-                using (var client = new HttpClient())
+                using (var response = await _httpClient.GetAsync(DatasetUrl, HttpCompletionOption.ResponseHeadersRead))
                 {
-                    client.Timeout = TimeSpan.FromMinutes(60); // Large file
-                    using (var response = await client.GetAsync(DatasetUrl, HttpCompletionOption.ResponseHeadersRead))
+                    response.EnsureSuccessStatusCode();
+                    using (var contentStream = await response.Content.ReadAsStreamAsync())
+                    using (var fileStream = new FileStream(zipPath, FileMode.Create, FileAccess.Write, FileShare.None, 8192, true))
                     {
-                        response.EnsureSuccessStatusCode();
-                        using (var contentStream = await response.Content.ReadAsStreamAsync())
-                        using (var fileStream = new FileStream(zipPath, FileMode.Create, FileAccess.Write, FileShare.None, 8192, true))
-                        {
-                            await contentStream.CopyToAsync(fileStream);
-                        }
+                        await contentStream.CopyToAsync(fileStream);
                     }
                 }
 
