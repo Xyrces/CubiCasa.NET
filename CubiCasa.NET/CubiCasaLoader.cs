@@ -171,10 +171,8 @@ namespace CubiCasa
             // Find all paths (handle with and without namespace if necessary, but typically strict)
             // If the root has a default namespace, all descendants inherit it.
 
-            foreach (var element in doc.Descendants())
+            foreach (var element in doc.Descendants(ns + "path"))
             {
-                if (element.Name.LocalName != "path") continue;
-
                 var parent = element.Parent;
                 var type = CubiCasaEntityType.Undefined;
                 var originalId = parent?.Attribute("id")?.Value ?? element.Attribute("id")?.Value;
